@@ -4890,5 +4890,47 @@ document.addEventListener("click",function(e){var b=e.target.closest&&e.target.c
 render();
 })();
 </script>
+<script>
+/* 03/11/2026 — Comercial (Cockpit) -> Nova implantação. O Cockpit abre este painel com os dados da venda depois do "#nova=" do endereço
+   (o trecho depois do # fica só no navegador, nunca vai a servidor). Quando o usuário estiver logado e a lista carregada, abre a pergunta do
+   tipo de venda e, ao escolher, preenche o formulário "Nova implantação" para REVISÃO. Nada é criado sem o usuário confirmar.
+   Contrato (v1): {v:1, programa, empresa, cnpj, cnae, grauRisco, uf, area, endereco, jornada, unidade}. Sem esse "#nova=" não muda nada. */
+(function(){
+  var raw = location.hash || "";
+  if (raw.indexOf("#nova=") !== 0) return;
+  var D = null;
+  try {
+    var b = raw.slice(6).replace(/-/g, "+").replace(/_/g, "/");
+    while (b.length % 4) b += "=";
+    D = JSON.parse(decodeURIComponent(escape(atob(b))));
+  } catch (e) { return; }
+  if (!D || D.v !== 1) return;
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  var norm = function(s){ return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); };
+  var setTxt = function(id, v){ var e = document.getElementById(id); if (e && v !== undefined && v !== null && String(v) !== "") e.value = String(v); };
+  var setSel = function(id, v){
+    var e = document.getElementById(id); if (!e || !v) return;
+    var o = [].slice.call(e.options).filter(function(x){ return norm(x.value) === norm(v) || norm(x.text) === norm(v); })[0];
+    if (o) e.value = o.value;
+  };
+  function preencher(){
+    setTxt("newClientName", D.programa); setTxt("newEmpresa", D.empresa); setTxt("newCnpj", D.cnpj); setTxt("newCnae", D.cnae);
+    setSel("newGrauRisco", D.grauRisco); setSel("newUf", D.uf); setSel("newClientArea", D.area);
+    setTxt("newEndereco", D.endereco); setTxt("newJornada", D.jornada);
+    var un = document.querySelector("#unitsContainer .unit-row .unitNome");
+    if (un && D.unidade) un.value = D.unidade;
+    if (typeof showToast === "function") showToast("Dados da venda trazidos do Cockpit. Revise antes de confirmar.");
+  }
+  var tent = 0;
+  function esperar(){
+    var pronto = typeof ITEMS !== "undefined" && ITEMS && ITEMS.length > 0 && typeof escolherTipoVenda === "function" && typeof openTipoVendaModal === "function";
+    if (!pronto) { if (++tent < 600) setTimeout(esperar, 500); return; }
+    var orig = window.escolherTipoVenda;
+    window.escolherTipoVenda = function(t){ var r = orig.apply(this, arguments); window.escolherTipoVenda = orig; preencher(); return r; };
+    openTipoVendaModal();
+  }
+  esperar();
+})();
+</script>
 </body>
 </html>
