@@ -4927,7 +4927,7 @@ render();
     setSel("newGrauRisco", D.grauRisco); setSel("newUf", D.uf); setSel("newClientArea", D.area);
     setTxt("newEndereco", D.endereco); setTxt("newJornada", D.jornada);
     /* contrato v2 (SIGE, 03/11/2026): abertura = 1º dia útil após a venda; vaga; nº do contrato */
-    if (D.v === 2) {
+    if (D.v === 2 || D.abertura) {
       var ud = document.querySelector('#unitsContainer .unit-row .unitData');
       if (ud && /^\d{4}-\d{2}-\d{2}$/.test(String(D.abertura || ''))) ud.value = D.abertura;
       var dsol = document.getElementById('newDataSolicitacao');
@@ -4947,7 +4947,7 @@ render();
     if (!pronto) { if (++tent < 600) setTimeout(esperar, 500); return; }
     var orig = window.escolherTipoVenda;
     window.escolherTipoVenda = function(t){ var r = orig.apply(this, arguments); window.escolherTipoVenda = orig; preencher(); return r; };
-    if (D.v === 2 && (D.tipoVenda === 'Nova Venda' || D.tipoVenda === 'Up Sell' || D.tipoVenda === 'Cross Sell')) { window.escolherTipoVenda(D.tipoVenda); } else { openTipoVendaModal(); } } esperar();
+    if ((D.v === 2 || D.abertura) && (D.tipoVenda === 'Nova Venda' || D.tipoVenda === 'Up Sell' || D.tipoVenda === 'Cross Sell')) { window.escolherTipoVenda(D.tipoVenda); } else { openTipoVendaModal(); } } esperar();
 })();
 </script>
 </body>
