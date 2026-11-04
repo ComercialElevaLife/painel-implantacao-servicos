@@ -3571,7 +3571,7 @@ async function cascadeDpAfterRS(item){
     if (n){ renderAll(); showToast("Prazos do DP recalculados: 2 dias uteis apos a conclusao do R&S (" + novoStr.split("-").reverse().join("/") + ")."); }
   } catch(e){ showToast("Nao consegui recalcular os prazos do DP: " + e.message, true); }
 }
-function addBusinessDays(d, n){ var x = new Date(d); var c = 0; while (c < n){ x.setDate(x.getDate() + 1); var w = x.getDay(); if (w !== 0 && w !== 6) c++; } return x; }
+function addBusinessDays(d, n){ var x = new Date(d); var c = 0; while (c < n){ x.setDate(x.getDate() + 1); if (_ehDiaUtil(x)) c++; } return x; }
 function mktEmail(){ return String(resolveResponsavelEmailForStep("MARKETING", "") || "").toLowerCase(); }
 function apoioMktPendentes(item){
   var base = clienteBaseName(item.cliente), mk = mktEmail();
@@ -3718,12 +3718,10 @@ function toPrazoIso(date){
 // ONBOARDING": as antigas etapas 5-25 viraram as novas etapas 4-24. Os prazos abaixo
 // preservam os mesmos intervalos relativos de antes, apenas sob a nova numeracao
 // (o intervalo que a antiga etapa 4 consumia foi incorporado no calculo da nova etapa 4).
-function rollToBusinessDay(date){
-  var dow = date.getDay();
-  if (dow === 6) return addDays(date, 2);
-  if (dow === 0) return addDays(date, 1);
-  return date;
-}
+/* 03/11/2026 — Léo: prazos não podem cair em fim de semana NEM feriado nacional (mesma lista do SIGE). */
+function _feriadosBR(a){var f={};var add=function(m,d){f[a+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2)]=1;};[[1,1],[4,21],[5,1],[9,7],[10,12],[11,2],[11,15],[11,20],[12,25]].forEach(function(x){add(x[0],x[1]);});var g=a%19,c=Math.floor(a/100),h=(c-Math.floor(c/4)-Math.floor((8*c+13)/25)+19*g+15)%30,i=h-Math.floor(h/28)*(1-Math.floor(29/(h+1))*Math.floor((21-g)/11)),j=(a+Math.floor(a/4)+i+2-c+Math.floor(c/4))%7,e=i-j,m=3+Math.floor((e+40)/44),d=e+28-31*Math.floor(m/4);var p=new Date(Date.UTC(a,m-1,d-2));add(p.getUTCMonth()+1,p.getUTCDate());return f;}
+function _ehDiaUtil(date){var w=date.getDay();if(w===0||w===6)return false;var k=date.getFullYear()+'-'+('0'+(date.getMonth()+1)).slice(-2)+'-'+('0'+date.getDate()).slice(-2);return !_feriadosBR(date.getFullYear())[k];}
+function rollToBusinessDay(date){var x=new Date(date);for(var n=0;n<15&&!_ehDiaUtil(x);n++)x=addDays(x,1);return x;}
 
 function computeAutoPrazos(abertura){
   var d = {};
@@ -4904,7 +4902,7 @@ render();
     while (b.length % 4) b += "=";
     D = JSON.parse(decodeURIComponent(escape(atob(b))));
   } catch (e) { return; }
-  if (!D || D.v !== 1) return;
+  if (!D || (D.v !== 1 && D.v !== 2)) return;
   try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   var norm = function(s){ return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); };
   var setTxt = function(id, v){ var e = document.getElementById(id); if (e && v !== undefined && v !== null && String(v) !== "") e.value = String(v); };
@@ -4917,6 +4915,17 @@ render();
     setTxt("newClientName", D.programa); setTxt("newEmpresa", D.empresa); setTxt("newCnpj", D.cnpj); setTxt("newCnae", D.cnae);
     setSel("newGrauRisco", D.grauRisco); setSel("newUf", D.uf); setSel("newClientArea", D.area);
     setTxt("newEndereco", D.endereco); setTxt("newJornada", D.jornada);
+    /* contrato v2 (SIGE, 03/11/2026): abertura = 1º dia útil após a venda; vaga; nº do contrato */
+    if (D.v === 2) {
+      var ud = document.querySelector('#unitsContainer .unit-row .unitData');
+      if (ud && /^\d{4}-\d{2}-\d{2}$/.test(String(D.abertura || ''))) ud.value = D.abertura;
+      var dsol = document.getElementById('newDataSolicitacao');
+      if (dsol && /^\d{4}-\d{2}-\d{2}$/.test(String(D.abertura || ''))) dsol.value = D.abertura;
+      setTxt('newCargo', D.cargo); setSel('newPerfil', D.perfil); setTxt('newVagas', D.vagas);
+      setTxt('newCargaHoraria', D.cargaHoraria); setTxt('newNumeroContrato', D.numeroContrato);
+      if (D.remuneracao && !D.cargo) setTxt('newRemuneracaoInicial', D.remuneracao);
+      ['newDataSolicitacao', 'newCargo', 'newPerfil'].forEach(function(id){ var e = document.getElementById(id); if (e) { try { e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); } catch (er) {} } });
+    }
     var un = document.querySelector("#unitsContainer .unit-row .unitNome");
     if (un && D.unidade) un.value = D.unidade;
     if (typeof showToast === "function") showToast("Dados da venda trazidos do Cockpit. Revise antes de confirmar.");
@@ -4927,9 +4936,7 @@ render();
     if (!pronto) { if (++tent < 600) setTimeout(esperar, 500); return; }
     var orig = window.escolherTipoVenda;
     window.escolherTipoVenda = function(t){ var r = orig.apply(this, arguments); window.escolherTipoVenda = orig; preencher(); return r; };
-    openTipoVendaModal();
-  }
-  esperar();
+    if (D.v === 2 && (D.tipoVenda === 'Up Sell' || D.tipoVenda === 'Cross Sell')) { window.escolherTipoVenda(D.tipoVenda); } else { openTipoVendaModal(); } } esperar();
 })();
 </script>
 </body>
