@@ -3720,38 +3720,47 @@ function toPrazoIso(date){
 // preservam os mesmos intervalos relativos de antes, apenas sob a nova numeracao
 // (o intervalo que a antiga etapa 4 consumia foi incorporado no calculo da nova etapa 4).
 /* 03/11/2026 — Léo: prazos não podem cair em fim de semana NEM feriado nacional (mesma lista do SIGE). */
-function _feriadosBR(a){var f={};var add=function(m,d){f[a+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2)]=1;};[[1,1],[4,21],[5,1],[9,7],[10,12],[11,2],[11,15],[11,20],[12,25]].forEach(function(x){add(x[0],x[1]);});var g=a%19,c=Math.floor(a/100),h=(c-Math.floor(c/4)-Math.floor((8*c+13)/25)+19*g+15)%30,i=h-Math.floor(h/28)*(1-Math.floor(29/(h+1))*Math.floor((21-g)/11)),j=(a+Math.floor(a/4)+i+2-c+Math.floor(c/4))%7,e=i-j,m=3+Math.floor((e+40)/44),d=e+28-31*Math.floor(m/4);var p=new Date(Date.UTC(a,m-1,d-2));add(p.getUTCMonth()+1,p.getUTCDate());return f;}
+var _REG={uf:'',cid:''};
+/* Feriados regionais: CONFERIR antes de ampliar. Formato MM-DD. */
+var _FER_UF={SP:['07-09'],RJ:['04-23'],RS:['09-20'],PR:['12-19'],BA:['07-02'],DF:['11-30']};
+var _FER_MUN={'SP|sao paulo':['01-25'],'RJ|rio de janeiro':['01-20']};
+function _semAc(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+function _regionais(a,add){var uf=String(_REG.uf||'').toUpperCase();(_FER_UF[uf]||[]).forEach(function(s){add(+s.slice(0,2),+s.slice(3,5));});var c=_semAc(_REG.cid);Object.keys(_FER_MUN).forEach(function(k){var p=k.split('|');if(p[0]===uf&&c.indexOf(p[1])>=0)_FER_MUN[k].forEach(function(s){add(+s.slice(0,2),+s.slice(3,5));});});}
+function _feriadosBR(a){var f={};var add=function(m,d){f[a+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2)]=1;};[[1,1],[4,21],[5,1],[9,7],[10,12],[11,2],[11,15],[11,20],[12,25]].forEach(function(x){add(x[0],x[1]);});var g=a%19,c=Math.floor(a/100),h=(c-Math.floor(c/4)-Math.floor((8*c+13)/25)+19*g+15)%30,i=h-Math.floor(h/28)*(1-Math.floor(29/(h+1))*Math.floor((21-g)/11)),j=(a+Math.floor(a/4)+i+2-c+Math.floor(c/4))%7,e=i-j,m=3+Math.floor((e+40)/44),d=e+28-31*Math.floor(m/4);var p=new Date(Date.UTC(a,m-1,d-2));add(p.getUTCMonth()+1,p.getUTCDate());_regionais(a,add);return f;}
 function _ehDiaUtil(date){var w=date.getDay();if(w===0||w===6)return false;var k=date.getFullYear()+'-'+('0'+(date.getMonth()+1)).slice(-2)+'-'+('0'+date.getDate()).slice(-2);return !_feriadosBR(date.getFullYear())[k];}
 function rollToBusinessDay(date){var x=new Date(date);for(var n=0;n<15&&!_ehDiaUtil(x);n++)x=addDays(x,1);return x;}
 
-function computeAutoPrazos(abertura){
+function _addBU(date,n){var x=new Date(date),s=n<0?-1:1,c=Math.abs(n);while(c>0){x.setDate(x.getDate()+s);if(_ehDiaUtil(x))c--;}return x;}
+function computeAutoPrazos(abertura,uf,cid){
+  var ant=_REG;_REG={uf:uf||'',cid:cid||''};
+  try{
   var d = {};
-  d[1] = addDays(abertura, 1);
-  d[2] = addDays(abertura, 1);
-  d[3] = addDays(d[2], 1);
-  d[4] = addDays(d[3], 4);
-  d[5] = addDays(d[4], 2);
-  d[6] = addDays(abertura, 7);
-  d[7] = addDays(abertura, 15);
-  d[8] = addDays(abertura, 16);
-  d[9] = addDays(abertura, 16);
-  d[10] = addDays(abertura, 16);
-  d[11] = addDays(abertura, 16);
-  d[12] = addDays(abertura, 16);
-  d[13] = addDays(abertura, 16);
-  d[20] = addDays(d[1], 25);
-  d[14] = addDays(d[20], -7);
-  d[15] = addDays(d[20], -5);
-  d[16] = addDays(d[20], -5);
-  d[17] = addDays(d[20], -5);
-  d[18] = addDays(d[20], -5);
-  d[19] = addDays(d[20], -5);
-  d[21] = addDays(d[20], 7);
-  d[22] = addDays(d[20], 30);
-  d[23] = addDays(d[20], 30);
-  d[24] = addDays(d[20], 30);
-  Object.keys(d).forEach(function(k){ d[k] = rollToBusinessDay(d[k]); });
+  d[1] = _addBU(abertura, 1);
+  d[2] = _addBU(abertura, 1);
+  d[3] = _addBU(d[2], 1);
+  d[4] = _addBU(d[3], 4);
+  d[5] = _addBU(d[4], 2);
+  d[6] = _addBU(abertura, 7);
+  d[7] = _addBU(abertura, 15);
+  d[8] = _addBU(abertura, 16);
+  d[9] = _addBU(abertura, 16);
+  d[10] = _addBU(abertura, 16);
+  d[11] = _addBU(abertura, 16);
+  d[12] = _addBU(abertura, 16);
+  d[13] = _addBU(abertura, 16);
+  d[20] = _addBU(d[1], 25);
+  d[14] = _addBU(d[20], -7);
+  d[15] = _addBU(d[20], -5);
+  d[16] = _addBU(d[20], -5);
+  d[17] = _addBU(d[20], -5);
+  d[18] = _addBU(d[20], -5);
+  d[19] = _addBU(d[20], -5);
+  d[21] = _addBU(d[20], 7);
+  d[22] = _addBU(d[20], 30);
+  d[23] = _addBU(d[20], 30);
+  d[24] = _addBU(d[20], 30);
   return d;
+  }finally{_REG=ant;}
 }
 
 // Etapa 18 (antiga 19) nao inclui mais o plant tour (movido para a etapa 20, antiga 21).
@@ -4000,7 +4009,7 @@ for (var ui=0; ui<totalUnits; ui++){
 var unit = units[ui];
 var clienteFinal = clienteNames[ui];
 var abertura = unit.data ? new Date(unit.data + "T00:00:00") : new Date();
-var prazos = computeAutoPrazos(abertura);
+var prazos = computeAutoPrazos(abertura, (document.getElementById("newUf")||{}).value, unit.nome);
 var extraFields = {};
 Object.keys(extraFieldsBase).forEach(function(k){ extraFields[k] = extraFieldsBase[k]; });
 if (unit.nome) extraFields.Unidade = unit.nome;
